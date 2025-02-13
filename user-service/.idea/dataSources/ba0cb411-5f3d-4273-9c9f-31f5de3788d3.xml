@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataSource name="go-mongoDb-starter@localhost">
+  <database-model serializer="dbm" dbms="MONGO" family-id="MONGO" format-version="4.53">
+    <root id="1">
+      <ServerVersion>7.0.12</ServerVersion>
+    </root>
+    <schema id="2" parent="1" name="admin"/>
+    <schema id="3" parent="1" name="cluster0">
+      <LastIntrospectionLocalTimestamp>2024-09-10.21:39:25</LastIntrospectionLocalTimestamp>
+    </schema>
+    <schema id="4" parent="1" name="local"/>
+    <table id="5" parent="3" name="users"/>
+    <column id="6" parent="5" name="_id">
+      <Position>1</Position>
+      <StoredType>ObjectId|12s</StoredType>
+    </column>
+    <column id="7" parent="5" name="address">
+      <Position>2</Position>
+      <StoredType>String|12s</StoredType>
+    </column>
+    <column id="8" parent="5" name="age">
+      <Position>3</Position>
+      <StoredType>Int32|4s</StoredType>
+    </column>
+    <column id="9" parent="5" name="email">
+      <Position>4</Position>
+      <StoredType>String|12s</StoredType>
+    </column>
+    <column id="10" parent="5" name="password">
+      <Position>5</Position>
+      <StoredType>String|12s</StoredType>
+    </column>
+    <column id="11" parent="5" name="phone">
+      <Position>6</Position>
+      <StoredType>String|12s</StoredType>
+    </column>
+    <column id="12" parent="5" name="token">
+      <Position>7</Position>
+      <StoredType>String|12s</StoredType>
+    </column>
+    <column id="13" parent="5" name="username">
+      <Position>8</Position>
+      <StoredType>String|12s</StoredType>
+    </column>
+  </database-model>
+</dataSource>
