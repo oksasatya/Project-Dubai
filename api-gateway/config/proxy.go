@@ -1,6 +1,7 @@
 package config
 
 import (
+	"api-gateway/webResponse"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"time"
@@ -10,7 +11,7 @@ import (
 func ForwardProxy(c echo.Context, serviceURL string) error {
 	req, err := http.NewRequest(c.Request().Method, serviceURL, c.Request().Body)
 	if err != nil {
-		return ResponseJson(c, http.StatusInternalServerError, nil, "Failed to create request")
+		return webResponse.ResponseJson(c, http.StatusInternalServerError, nil, "Failed to create request")
 	}
 
 	req.Header = c.Request().Header
@@ -21,7 +22,7 @@ func ForwardProxy(c echo.Context, serviceURL string) error {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return ResponseJson(c, http.StatusInternalServerError, nil, "Failed to send request")
+		return webResponse.ResponseJson(c, http.StatusInternalServerError, nil, "Failed to send request")
 	}
 	defer resp.Body.Close()
 

@@ -11,29 +11,24 @@ import (
 	"os/signal"
 	"time"
 	"user-service/database"
-	"user-service/internal/controller"
 	"user-service/internal/repository"
 	"user-service/internal/service"
-	"user-service/pkg"
 )
 
 // App struct for save instance of app
 type App struct {
-	DB         *mongo.Database
-	Server     *echo.Echo
-	Controller *Controller
+	DB      *mongo.Database
+	Server  *echo.Echo
+	Service *Service
 }
 
-type Controller struct {
-	UserController *controller.UserController
+type Service struct {
+	UserService service.UserService
 }
 
 // Initialize prepare environment and setup app
 func (app *App) Initialize() {
 	app.LoadEnv()
-
-	// setup loger
-	pkg.SetupLogger()
 
 	// init db
 	db, err := database.InitMongoDB()
@@ -42,8 +37,10 @@ func (app *App) Initialize() {
 	}
 	app.DB = db
 
-	// init Controller
-	app.Controller = app.InitController()
+	// init Service
+	app.Service = &Service{
+		UserService: service.NewUserService(repository.NewUserRepo(db), os.Getenv("JWT_SECRET")),
+	}
 
 	// init Server
 	app.Server = echo.New()
@@ -54,7 +51,7 @@ func (app *App) Initialize() {
 
 // RunConsumer function to run consumer
 func (app *App) RunConsumer() {
-	go messaging.ConsumeMessage("user_registration_queue", app.Controller.UserController.HandleRegistration, messaging.ResponseChannel)
+	go messaging.ConsumeMessage("user_registration_queue", app.Service.UserService.RegisterUser)
 }
 
 // Run function to run the app
@@ -97,15 +94,5 @@ func (app *App) LoadEnv() {
 	if err := godotenv.Load(envFile); err != nil {
 		logrus.Fatal("Error loading .env file ", err)
 	}
-}
-
-// InitController function to initialize controller
-func (app *App) InitController() *Controller {
-	userRepo := repository.NewUserRepo(app.DB)
-	userService := service.NewUserService(userRepo, os.Getenv("JWT_SECRET"))
-	userController := controller.NewUserController(userService)
-
-	return &Controller{
-		UserController: userController,
-	}
+	logrus.Printf("environtment running on %s", envFile)
 }

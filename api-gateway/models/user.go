@@ -19,3 +19,14 @@ func (r *RegisterRequest) Validate() error {
 	validate := validator.New()
 	return validate.Struct(r)
 }
+
+type LoginRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6"`
+}
+
+// Validate function to validate LoginRequest using go-playground/validator
+func (l *LoginRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(l)
+}

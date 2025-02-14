@@ -11,11 +11,8 @@ import (
 var ResponseChannel = make(chan string)
 
 // ConsumeMessage message from RabbitMQ
-func ConsumeMessage(queueName string, handler func([]byte, chan string), responseChannel chan string) {
+func ConsumeMessage(queueName string, handler func([]byte, chan string)) {
 	rabbitMQURI := os.Getenv("RABBITMQ_URI")
-	if rabbitMQURI == "" {
-		rabbitMQURI = "amqp://guest:guest@localhost:5672/"
-	}
 
 	conn, err := amqp091.Dial(rabbitMQURI)
 	if err != nil {
@@ -44,7 +41,7 @@ func ConsumeMessage(queueName string, handler func([]byte, chan string), respons
 	go func() {
 		for d := range msgs {
 			logrus.Infof("Received message from %s: %s", queueName, d.Body)
-			handler(d.Body, responseChannel)
+			handler(d.Body, ResponseChannel)
 		}
 	}()
 }

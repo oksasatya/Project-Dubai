@@ -59,12 +59,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Migration is a struct to define migration
-type Migration struct {
-	ID       string
-	Migrate  func() error
-	Rollback func() error
-}
 
 // Migration function for $migration_name
 func $function_name(database *mongo.Database, indexField string) *Migration {

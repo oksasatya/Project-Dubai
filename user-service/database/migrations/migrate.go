@@ -8,6 +8,13 @@ import (
 	"user-service/database/seeder"
 )
 
+// Migration is a struct to define migration
+type Migration struct {
+	ID       string
+	Migrate  func() error
+	Rollback func() error
+}
+
 // Migrate is a function to migrate all tables
 func Migrate(db *mongo.Database) error {
 	migrations := []*Migration{

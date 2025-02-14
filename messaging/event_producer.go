@@ -9,9 +9,6 @@ import (
 // PublishMessage message to RabbitMQ
 func PublishMessage(queueName string, body string) error {
 	rabbitMQURI := os.Getenv("RABBITMQ_URI")
-	if rabbitMQURI == "" {
-		rabbitMQURI = "amqp://guest:guest@localhost:5672/"
-	}
 
 	// Connect to RabbitMQ
 	conn, err := amqp091.Dial(rabbitMQURI)

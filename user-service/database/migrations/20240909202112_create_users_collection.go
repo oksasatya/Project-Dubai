@@ -10,13 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Migration is a struct to define migration
-type Migration struct {
-	ID       string
-	Migrate  func() error
-	Rollback func() error
-}
-
 // Migration function for create_users_collection
 func createUsersCollectionMigration(database *mongo.Database, indexField string) *Migration {
 	return &Migration{

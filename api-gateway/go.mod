@@ -9,10 +9,10 @@ require (
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.33.0
+	golang.org/x/time v0.8.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	messaging v0.0.0-00010101000000-000000000000
 )
-
-replace messaging => ../messaging
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
@@ -28,5 +28,4 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
-	golang.org/x/time v0.8.0 // indirect
 )
