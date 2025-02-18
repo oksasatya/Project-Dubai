@@ -7,7 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"time"
-	"user-service/internal/models"
+	"user-service/core/models"
 	"user-service/utils"
 )
 
@@ -19,7 +19,8 @@ func SeedUsers(db *mongo.Database) {
 	for i := 1; i <= 15; i++ {
 		gofakeit.Seed(0)
 		password, _ := utils.HashPassword("test12345")
-		role := gofakeit.RandomString([]string{models.AdminRole, models.UserRole})
+		role := gofakeit.RandomString([]string{models.RoleAdmin, models.RoleUser})
+		imageUrl := "https://picsum.photos/200/300"
 		user := models.User{
 			Username: gofakeit.Name(),
 			Email:    gofakeit.Email(),
@@ -27,6 +28,8 @@ func SeedUsers(db *mongo.Database) {
 			Age:      gofakeit.Number(18, 60),
 			Phone:    gofakeit.Phone(),
 			Password: password,
+			GoogleID: gofakeit.UUID(),
+			Avatar:   imageUrl,
 			Role:     role,
 		}
 		users = append(users, user)

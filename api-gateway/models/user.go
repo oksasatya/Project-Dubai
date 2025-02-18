@@ -2,31 +2,44 @@ package models
 
 import (
 	"github.com/go-playground/validator/v10"
+	"time"
 )
 
-// RegisterRequest struct for user registration
 type RegisterRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=30"`
 	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
+	Username string `json:"username" validate:"required,min=3"`
+	Password string `json:"password" validate:"required,min=6"`
 	Address  string `json:"address" validate:"required"`
-	Age      int    `json:"age" validate:"required,gte=18"`
-	Phone    string `json:"phone" validate:"required,e164"`
+	Phone    string `json:"phone" validate:"required"`
+	Age      int    `json:"age" validate:"required,gt=0"`
 }
 
-// Validate function to validate RegisterRequest using go-playground/validator
 func (r *RegisterRequest) Validate() error {
 	validate := validator.New()
 	return validate.Struct(r)
 }
 
+// LoginRequest Request for login
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=6"`
 }
 
-// Validate function to validate LoginRequest using go-playground/validator
 func (l *LoginRequest) Validate() error {
 	validate := validator.New()
 	return validate.Struct(l)
+}
+
+// OAuthUserRequest Request for Register OAuth
+type OAuthUserRequest struct {
+	GoogleID string `json:"google_id" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required"`
+}
+
+type Event struct {
+	EventType     string      `json:"event_type"`
+	CorrelationID string      `json:"correlation_id"`
+	Timestamp     time.Time   `json:"timestamp"`
+	Payload       interface{} `json:"payload"`
 }

@@ -32,7 +32,7 @@ func (hook *FileHook) Levels() []logrus.Level {
 }
 
 func (hook *FileHook) Fire(entry *logrus.Entry) error {
-	if os.Getenv("port") == "8080" {
+	if os.Getenv("APP_ENV") == "development" {
 		entry.Data["Environment"] = "Development"
 	} else {
 		entry.Data["Environment"] = "Production"

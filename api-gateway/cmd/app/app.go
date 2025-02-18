@@ -4,28 +4,35 @@ import (
 	"api-gateway/config"
 	"api-gateway/handler"
 	"api-gateway/routes"
+	"api-gateway/webResponse"
 	"context"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/time/rate"
+	"messaging"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 )
 
 type App struct {
-	Server  *echo.Echo
-	Handler *Handler
+	Server          *echo.Echo
+	Handler         *Handler
+	DB              *mongo.Database
+	RMQ             *messaging.RabbitMQConnection
+	ResponseHandler *webResponse.ResponseHandler
 }
 
-// Handler Struct for save instance of handler
+// Handler Struct for saving instance of handler
 type Handler struct {
 	UserHandler *handler.UserHandler
 }
 
-// Initialize prepare environment and setup app
+// Initialize sets up environment and app
 func (app *App) Initialize() {
 	app.LoadEnv()
 	app.Server = echo.New()
@@ -33,60 +40,83 @@ func (app *App) Initialize() {
 	cfg := config.LoadRateLimitConfig()
 	app.Server.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStoreWithConfig(
 		middleware.RateLimiterMemoryStoreConfig{
-			Rate:      rate.Limit(time.Second),
+			Rate:      rate.Limit(cfg.RateLimit),
 			Burst:     cfg.RateLimit,
 			ExpiresIn: 1 * time.Minute,
 		},
 	)))
 
-	// logging
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Fatalf("Panic occurred during initialization: %v", r)
+		}
+	}()
+
 	config.SetupLogger()
-	// recover from panic
 	app.Server.Use(middleware.Recover())
-	// CORS
 	app.Server.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept"},
 	}))
-
 	app.Server.Use(middleware.Gzip())
 
-	routes.UserRoutes(app.Server, cfg)
-}
+	rmq, err := messaging.NewRabbitMQConnection()
+	if err != nil {
+		logrus.Fatalf("Failed to initialize RabbitMQ: %v", err)
+	}
+	app.RMQ = rmq
+	logrus.Info("RabbitMQ initialized successfully")
 
-// Run function to run the app
-func (app *App) Run() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	if app.RMQ == nil {
+		logrus.Fatal("Failed to initialize RabbitMQ")
+	}
+	app.Handler = &Handler{
+		UserHandler: handler.NewUserHandler(cfg, app.RMQ, app.ResponseHandler),
+	}
+	app.ResponseHandler = webResponse.NewResponseHandler(app.RMQ)
+	if app.ResponseHandler == nil {
+		logrus.Fatal("ResponseHandler is nil after initialization")
 	}
 
-	// graceful shutdown
-	go func() {
-		if err := app.Server.Start(":" + port); err != nil {
-			logrus.Info("Shutting down the server")
-		}
-	}()
+	if app.Handler == nil || app.Handler.UserHandler == nil {
+		logrus.Fatal("Failed to initialize handler")
+	}
 
+	routes.UserRoutes(app.Server, cfg, app.RMQ, app.ResponseHandler)
+}
+
+// handleShutdown function to gracefully shutdown server
+func (app *App) handleShutdown() {
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
-	<-quit
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
-	logrus.Info("Shutting down the server")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := app.Server.Shutdown(ctx); err != nil {
-		logrus.Fatal(err)
-	}
+	go func() {
+		<-quit
+		logrus.Warn("Gracefully shutting down server...")
 
-	logrus.Info("Server shutdown")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := app.Server.Shutdown(ctx); err != nil {
+			logrus.Fatalf("Error shutting down server: %v", err)
+		}
+		if app.RMQ != nil {
+			app.RMQ.Close()
+		}
+		logrus.Info("Server and RabbitMQ connection closed successfully")
+	}()
 }
 
+// LoadEnv function to load environment variables
 func (app *App) LoadEnv() {
-	appEnv := os.Getenv("APP_ENV")
+	if err := godotenv.Load(); err != nil {
+		logrus.Fatal("Error loading .env file ", err)
+	}
+
 	envFile := ".env"
 
+	appEnv := os.Getenv("APP_ENV")
 	if appEnv == "development" {
 		envFile = ".env.development"
 	}
@@ -94,4 +124,20 @@ func (app *App) LoadEnv() {
 	if err := godotenv.Load(envFile); err != nil {
 		logrus.Fatal("Error loading .env file ", err)
 	}
+
+	logrus.Printf("Environment running on: %s , .env : %s", appEnv, envFile)
+}
+
+// Run starts the server
+func (app *App) Run() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if err := app.Server.Start(":" + port); err != nil {
+		logrus.Info("Shutting down the server")
+	}
+
+	app.handleShutdown()
 }

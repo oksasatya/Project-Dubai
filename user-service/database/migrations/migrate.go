@@ -19,6 +19,7 @@ type Migration struct {
 func Migrate(db *mongo.Database) error {
 	migrations := []*Migration{
 		createUsersCollectionMigration(db, "email"),
+		createUseractivitylogCollectionMigration(db, "userID"),
 	}
 	autoMigrate := os.Getenv("AUTO_MIGRATE")
 	autoDrop := os.Getenv("AUTO_DROP")

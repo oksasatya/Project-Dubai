@@ -12,7 +12,7 @@ func FormatValidationError(model interface{}, errors validator.ValidationErrors)
 	modelType := reflect.TypeOf(model).Elem()
 
 	for _, err := range errors {
-		// Get the field name from the model's struct
+		// Get the field name from the models's struct
 		field, found := modelType.FieldByName(err.Field())
 		fieldName := err.Field()
 		if found {
