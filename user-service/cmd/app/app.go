@@ -1,7 +1,9 @@
 package main
 
 import (
+	"api-gateway/config"
 	"context"
+	"encoding/json"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
@@ -9,10 +11,12 @@ import (
 	"messaging"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
+	"user-service/core/models"
+	"user-service/core/repository"
+	"user-service/core/service"
 	"user-service/database"
-	"user-service/internal/repository"
-	"user-service/internal/service"
 )
 
 // App struct for save instance of app
@@ -20,6 +24,7 @@ type App struct {
 	DB      *mongo.Database
 	Server  *echo.Echo
 	Service *Service
+	RMQ     *messaging.RabbitMQConnection
 }
 
 type Service struct {
@@ -30,28 +35,52 @@ type Service struct {
 func (app *App) Initialize() {
 	app.LoadEnv()
 
-	// init db
+	// Init Server
+	app.Server = echo.New()
+
+	// Init Database
 	db, err := database.InitMongoDB()
 	if err != nil {
 		logrus.Fatalf("Error connecting to database: %v", err)
 	}
 	app.DB = db
 
-	// init Service
-	app.Service = &Service{
-		UserService: service.NewUserService(repository.NewUserRepo(db), os.Getenv("JWT_SECRET")),
+	config.SetupLogger()
+
+	// Init RabbitMQ
+	rmq, err := messaging.NewRabbitMQConnection()
+	if err != nil {
+		logrus.Fatalf("Failed to initialize RabbitMQ: %v", err)
 	}
+	app.RMQ = rmq
 
-	// init Server
-	app.Server = echo.New()
-
-	// Run consumer
-	app.RunConsumer()
+	// Init Service
+	app.Service = &Service{
+		UserService: service.NewUserService(repository.NewUserRepo(db), rmq),
+	}
 }
 
 // RunConsumer function to run consumer
-func (app *App) RunConsumer() {
-	go messaging.ConsumeMessage("user_registration_queue", app.Service.UserService.RegisterUser)
+func (app *App) RunConsumer(wg *sync.WaitGroup) {
+	defer wg.Done()
+	go func() {
+		messaging.ConsumeEvent(app.RMQ, "UserRegistered", func(event models.Event) {
+			ctx := context.Background()
+
+			var req models.UserRegisteredEvent
+			payloadBytes, _ := json.Marshal(event.Payload)
+			if err := json.Unmarshal(payloadBytes, &req); err != nil {
+				logrus.Errorf("Failed to parse event payload: %v", err)
+				return
+			}
+
+			logrus.Infof("[user-service] Processing UserRegistered | Email: %s", req.Email)
+			app.Service.UserService.HandleUserRegistered(ctx, payloadBytes, event.CorrelationID)
+		})
+	}()
+
+	// **Don't let the main goroutine finish so the consumer will keep running**
+	select {}
 }
 
 // Run function to run the app
@@ -61,7 +90,11 @@ func (app *App) Run() {
 		port = "8080"
 	}
 
-	// graceful shutdown
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// Run Consumer
+	go app.RunConsumer(&wg)
+
 	go func() {
 		if err := app.Server.Start(":" + port); err != nil {
 			logrus.Info("Shutting down the server")
@@ -79,14 +112,22 @@ func (app *App) Run() {
 		logrus.Fatal(err)
 	}
 
+	if app.RMQ != nil {
+		app.RMQ.Close()
+	}
+
 	logrus.Info("Server shutdown")
 }
 
 // LoadEnv function to load environment variables
 func (app *App) LoadEnv() {
-	appEnv := os.Getenv("APP_ENV")
+	if err := godotenv.Load(); err != nil {
+		logrus.Fatal("Error loading .env file ", err)
+	}
+
 	envFile := ".env"
 
+	appEnv := os.Getenv("APP_ENV")
 	if appEnv == "development" {
 		envFile = ".env.development"
 	}
@@ -94,5 +135,6 @@ func (app *App) LoadEnv() {
 	if err := godotenv.Load(envFile); err != nil {
 		logrus.Fatal("Error loading .env file ", err)
 	}
-	logrus.Printf("environtment running on %s", envFile)
+
+	logrus.Printf("Environment running on: %s , .env : %s", appEnv, envFile)
 }

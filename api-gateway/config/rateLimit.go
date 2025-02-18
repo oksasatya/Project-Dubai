@@ -69,6 +69,6 @@ func CheckRateLimit(c echo.Context) error {
 	if rateLimit.Enable && !limiter.Allow(ip) {
 		return webResponse.ResponseJson(c, http.StatusTooManyRequests, nil, "Too many requests")
 	}
-	
+
 	return nil
 }
