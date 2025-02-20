@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_container
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dubai_deals
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+  mongo:
+    image: mongo:6
+    container_name: mongo_container
+    restart: always
+    environment:
+      MONGO_INITDB_USERNAME: oksa
+      MONGO_INITDB_PASSWORD: dubaiDealsStaging
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app_network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_container
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: oksa
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app_network
+
+  user-service:
+    build: ./user-service
+    container_name: user_service_container
+    restart: always
+    depends_on:
+      - postgres
+      - mongo
+      - rabbitmq
+    environment:
+#      DATABASE_URL: "postgres://user:password@postgres:5432/mydb?sslmode=disable"
+      MONGO_URL: "mongodb+srv://oksa:dubaiDealsStaging@staging.jg5x4.mongodb.net/?retryWrites=true&w=majority&appName=staging"
+      RABBITMQ_URL: "amqp://oksa:password@rabbitmq:5672"
+    networks:
+      - app_network
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api_gateway_container
+    restart: always
+    depends_on:
+      - user-service
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
+
+networks:
+  app_network:
+
+volumes:
+  postgres_data:
+  mongo_data:

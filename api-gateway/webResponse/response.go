@@ -69,7 +69,7 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 		logrus.Fatal("HandleEventResponse: RabbitMQ connection is nil!")
 		return ResponseJson(c, http.StatusInternalServerError, nil, "Internal Server Error: RabbitMQ connection is nil")
 	}
-	responseEvent, err := messaging.WaitForEvent(h.RMQ, timeout, eventName...)
+	responseEvent, err := messaging.WaitForEvent(h.RMQ, timeout, "api-gateway", eventName...)
 	if err != nil {
 		logrus.Errorf("Event timeout while waiting for: %s", eventName)
 		return ResponseJson(c, http.StatusGatewayTimeout, nil, "Request timed out waiting for response")
@@ -78,7 +78,6 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 	logrus.Infof("Received event: %s | CorrelationID: %s", eventName, responseEvent.CorrelationID)
 
 	var jsonResponse map[string]interface{}
-
 	if payloadStr, ok := responseEvent.Payload.(string); ok {
 		//logrus.Warnf("Payload is a string: %s", payloadStr)
 		if json.Valid([]byte(payloadStr)) {
@@ -98,7 +97,7 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 
 	for _, expectedEvent := range eventName {
 		if responseEvent.EventType == expectedEvent {
-			logrus.Infof("Received expected event: %s", expectedEvent)
+			//logrus.Infof("Received expected event: %s", expectedEvent)
 			if generateToken {
 				userID, _ := jsonResponse["id"].(string)
 				userEmail, _ := jsonResponse["email"].(string)
@@ -116,6 +115,7 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 			return ResponseJson(c, statusCode, jsonResponse, message)
 		}
 	}
+
 	logrus.Errorf("Unexpected event received: %s", responseEvent.EventType)
 	return ResponseJson(c, http.StatusInternalServerError, nil, "Unexpected event received")
 }
