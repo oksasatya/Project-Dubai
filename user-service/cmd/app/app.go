@@ -80,31 +80,39 @@ func (app *App) RunConsumer(wg *sync.WaitGroup) {
 			app.Service.UserService.HandleUserRegistered(ctx, payloadBytes, event.CorrelationID)
 		},
 
-		//"UserLogin": func(event models.Event) {
-		//	ctx := context.Background()
-		//
-		//	var req models.UserLoginEvent
-		//	payloadBytes, _ := json.Marshal(event.Payload)
-		//	if err := json.Unmarshal(payloadBytes, &req); err != nil {
-		//		logrus.Errorf("Failed to parse event payload: %v", err)
-		//		return
-		//	}
-		//
-		//	logrus.Infof("[user-service] Processing UserLogin | Email: %s", req.Email)
-		//	app.Service.UserService.HandleUserLogin(ctx, payloadBytes, event.CorrelationID)
-		//},
+		"UserLogin": func(event models.Event) {
+			ctx := context.Background()
+
+			var req models.UserLoginEvent
+			payloadBytes, _ := json.Marshal(event.Payload)
+			if err := json.Unmarshal(payloadBytes, &req); err != nil {
+				logrus.Errorf("Failed to parse event payload: %v", err)
+				return
+			}
+
+			logrus.Infof("[user-service] Processing UserLogin | Email: %s", req.Email)
+			app.Service.UserService.HandleUserLogin(ctx, payloadBytes, event.CorrelationID)
+		},
 	}
 
-	for eventName, handler := range eventHandlers {
-		go func(eventName string, handler func(models.Event)) {
-			logrus.Infof("[RabbitMQ] Listening for event: %s", eventName)
-			messaging.ConsumeEvent(app.RMQ, "user-service", []string{eventName}, handler)
-		}(eventName, handler)
+	var eventNames []string
+	for eventName := range eventHandlers {
+		eventNames = append(eventNames, eventName)
 	}
+
+	go func() {
+		logrus.Infof("[RabbitMQ] Listening for events: %v", eventNames)
+		messaging.ConsumeEvent(app.RMQ, "user-service", eventNames, func(event models.Event) {
+			if handler, exists := eventHandlers[event.EventType]; exists {
+				handler(event)
+			} else {
+				logrus.Warnf("No handler found for event: %s", event.EventType)
+			}
+		})
+	}()
 
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
-
 	<-stopChan
 	logrus.Warn("[RabbitMQ] Stopping consumers...")
 }

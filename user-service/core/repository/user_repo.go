@@ -11,6 +11,7 @@ import (
 
 type UserRepo interface {
 	SaveUser(ctx context.Context, user *models.User) (*mongo.InsertOneResult, error)
+	SaveToActivityLog(ctx context.Context, activity *models.UserActivityLog) (*mongo.InsertOneResult, error)
 	FindUserByEmail(ctx context.Context, email string) (*models.User, error)
 	FindUserByID(ctx context.Context, id string) (*models.User, error)
 	FindByGoogleID(ctx context.Context, googleID string) (*models.User, error)
@@ -72,6 +73,18 @@ func (r *userRepo) FindUserByID(ctx context.Context, id string) (*models.User, e
 	}
 
 	return &user, nil
+}
+
+func (r *userRepo) SaveToActivityLog(ctx context.Context, activity *models.UserActivityLog) (*mongo.InsertOneResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	result, err := r.db.Collection("userActivityLog").InsertOne(ctx, activity)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func NewUserRepo(db *mongo.Database) UserRepo {

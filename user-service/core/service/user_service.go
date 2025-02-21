@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"messaging"
 	"time"
@@ -17,7 +18,7 @@ import (
 
 type UserService interface {
 	HandleUserRegistered(ctx context.Context, eventData []byte, correlationID string)
-	//HandleUserLogin(ctx context.Context, eventData []byte, correlationID string)
+	HandleUserLogin(ctx context.Context, eventData []byte, correlationID string)
 	HandleUserOauth(ctx context.Context, eventData []byte, correlationID string)
 }
 
@@ -73,6 +74,7 @@ func (c *userService) HandleUserRegistered(ctx context.Context, eventData []byte
 		UpdatedAt: time.Now(),
 	}
 
+	// save to user
 	_, err = c.userRepo.SaveUser(ctx, &newUser)
 	if err != nil {
 		errorResponse := c.sendMessage.SendingToMessage("UserRegisteredFailed", correlationID, "Failed to save user")
@@ -81,7 +83,17 @@ func (c *userService) HandleUserRegistered(ctx context.Context, eventData []byte
 		}
 		return
 	}
-
+	// save to userActivityLog
+	SaveActivityLog := &models.UserActivityLog{
+		UserID:            newUser.ID,
+		ActivityType:      "Register",
+		ActivityTimestamp: primitive.DateTime(time.Now().Unix()),
+	}
+	_, err = c.userRepo.SaveToActivityLog(ctx, SaveActivityLog)
+	if err != nil {
+		logrus.Errorf("Failed to save user activity log: %v", err)
+	}
+	// Publish event UserRegisteredSuccess
 	successResponse := c.sendMessage.SendingToMessage("UserRegisteredSuccess", correlationID, map[string]interface{}{
 		"email":    newUser.Email,
 		"username": newUser.Username,
@@ -97,47 +109,58 @@ func (c *userService) HandleUserRegistered(ctx context.Context, eventData []byte
 }
 
 // HandleUserLogin is a function to handle user login
-//func (c *userService) HandleUserLogin(ctx context.Context, eventData []byte, correlationID string) {
-//	if c.sendMessage == nil {
-//		logrus.Fatalf("Failed to initialize SendingMessage")
-//		return
-//	}
-//
-//	// Unmarshal event JSON ke struct `UserLoginEvent`
-//	var req models.UserLoginEvent
-//	if err := json.Unmarshal(eventData, &req); err != nil {
-//		logrus.Errorf("Invalid event data: %v", err)
-//		return
-//	}
-//
-//	// find user by email
-//	user, err := c.userRepo.FindUserByEmail(ctx, req.Email)
-//	if err != nil {
-//		errorResponse := c.sendMessage.SendingToMessage("UserLoginFailed", correlationID, "Failed to find user")
-//		if errorResponse != nil {
-//			logrus.Errorf("Failed to publish UserLoginFailed: %v", errorResponse)
-//		}
-//		return
-//	}
-//
-//	// Cek if password is correct
-//	if !utils.CheckPasswordHash(req.Password, user.Password) {
-//		errorResponse := c.sendMessage.SendingToMessage("UserLoginFailed", correlationID, "Invalid password")
-//		if errorResponse != nil {
-//			logrus.Errorf("Failed to publish UserLoginFailed: %v", errorResponse)
-//		}
-//		return
-//	}
-//
-//	successResponse := c.sendMessage.SendingToMessage("UserLoginSuccess", correlationID, models.UserLoginEvent{
-//		Email: user.Email,
-//		Role:  user.Role,
-//	})
-//
-//	if successResponse != nil {
-//		logrus.Errorf("failed to publish User Login Success %v", successResponse)
-//	}
-//}
+func (c *userService) HandleUserLogin(ctx context.Context, eventData []byte, correlationID string) {
+	if c.sendMessage == nil {
+		logrus.Fatalf("Failed to initialize SendingMessage")
+		return
+	}
+
+	// Unmarshal event JSON ke struct `UserLoginEvent`
+	var req models.UserLoginEvent
+	if err := json.Unmarshal(eventData, &req); err != nil {
+		logrus.Errorf("Invalid event data: %v", err)
+		return
+	}
+
+	// find user by email
+	user, err := c.userRepo.FindUserByEmail(ctx, req.Email)
+	if err != nil {
+		errorResponse := c.sendMessage.SendingToMessage("UserLoginFailed", correlationID, "Invalid Email or Password")
+		if errorResponse != nil {
+			logrus.Errorf("Failed to publish UserLoginFailed: %v", errorResponse)
+		}
+		return
+	}
+
+	// Cek if password is correct
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		errorResponse := c.sendMessage.SendingToMessage("UserLoginFailed", correlationID, "Invalid Email or Password")
+		if errorResponse != nil {
+			logrus.Errorf("Failed to publish UserLoginFailed: %v", errorResponse)
+		}
+		return
+	}
+
+	// save to userActivityLog
+	SaveActivityLog := models.UserActivityLog{
+		ID:                primitive.NewObjectID(),
+		UserID:            user.ID,
+		ActivityType:      "Login",
+		ActivityTimestamp: primitive.DateTime(time.Now().Unix()),
+	}
+	_, err = c.userRepo.SaveToActivityLog(ctx, &SaveActivityLog)
+	if err != nil {
+		logrus.Errorf("Failed to save user activity log: %v", err)
+	}
+	successResponse := c.sendMessage.SendingToMessage("UserLoginSuccess", correlationID, models.UserLoginEvent{
+		Email: user.Email,
+		Role:  user.Role,
+	})
+
+	if successResponse != nil {
+		logrus.Errorf("failed to publish User Login Success %v", successResponse)
+	}
+}
 
 // HandleUserOauth is a function to handle user oauth
 func (c *userService) HandleUserOauth(ctx context.Context, eventData []byte, correlationID string) {
@@ -181,8 +204,6 @@ func (c *userService) HandleUserOauth(ctx context.Context, eventData []byte, cor
 				}
 				return
 			}
-
-			//user = savedUser
 		} else {
 			errorResponse := c.sendMessage.SendingToMessage("UserOauthFailed", correlationID, "Failed to find user")
 			if errorResponse != nil {

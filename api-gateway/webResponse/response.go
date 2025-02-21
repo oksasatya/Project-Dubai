@@ -111,6 +111,7 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 
 				jsonResponse["token"] = token
 				delete(jsonResponse, "id")
+				delete(jsonResponse, "password")
 			}
 			return ResponseJson(c, statusCode, jsonResponse, message)
 		}

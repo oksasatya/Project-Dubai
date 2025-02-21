@@ -12,7 +12,7 @@ import (
 func UserRoutes(e *echo.Echo, cfg *config.RateLimitConfig, rmq *messaging.RabbitMQConnection, res *webResponse.ResponseHandler) {
 	userHandler := handler.NewUserHandler(cfg, rmq, res)
 	r := e.Group("/api/users")
-	//r.POST("/login", userHandler.Login)
+	r.POST("/login", userHandler.Login)
 	r.POST("/register", userHandler.Register)
 
 	// oauthGroup

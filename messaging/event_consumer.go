@@ -18,7 +18,7 @@ func ConsumeEvent(rmq *RabbitMQConnection, serviceName string, eventNames []stri
 	}
 
 	q, err := ch.QueueDeclare(
-		serviceName+"_queue",
+		fmt.Sprintf("%s_queue", serviceName),
 		true,
 		false,
 		false,
@@ -52,12 +52,24 @@ func ConsumeEvent(rmq *RabbitMQConnection, serviceName string, eventNames []stri
 				logrus.Errorf("Failed to parse event data: %v", err)
 				continue
 			}
+			logrus.Infof("[RabbitMQ] Event received: %s | CorrelationID: %s", event.EventType, event.CorrelationID)
 
-			handler(event)
+			found := false
+			for _, expectedEvent := range eventNames {
+				if event.EventType == expectedEvent {
+					found = true
+					break
+				}
+			}
 
-			err = d.Ack(false)
-			if err != nil {
-				logrus.Errorf("Failed to acknowledge message: %v", err)
+			if found {
+				handler(event)
+				err = d.Ack(false)
+				if err != nil {
+					logrus.Errorf("Failed to acknowledge message: %v", err)
+				}
+			} else {
+				logrus.Warnf("Received unexpected event: %s", event.EventType)
 			}
 		}
 	}()
@@ -94,7 +106,6 @@ func WaitForEvent(rmq *RabbitMQConnection, timeout time.Duration, serviceName st
 			logrus.Errorf("Failed to bind queue to event %s: %v", eventName, err)
 			return models.Event{}, err
 		}
-		logrus.Infof("[RabbitMQ] Queue %s bound to event %s", queue.Name, eventName)
 	}
 
 	msgs, err := ch.Consume(queue.Name, "", false, false, false, false, nil)

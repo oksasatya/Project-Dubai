@@ -66,36 +66,36 @@ func (h *UserHandler) Register(c echo.Context) error {
 }
 
 // Login handles user login event-driven
-//func (h *UserHandler) Login(c echo.Context) error {
-//	// Rate Limit
-//	err := config.CheckRateLimit(c)
-//	if err != nil {
-//		return err
-//	}
-//	// bind & validate request
-//	var requestBody models.LoginRequest
-//	if err := c.Bind(&requestBody); err != nil {
-//		return webResponse.ResponseJson(c, http.StatusBadRequest, nil, "Invalid request format")
-//	}
-//	if err := requestBody.Validate(); err != nil {
-//		return webResponse.ResponseJson(c, http.StatusBadRequest, nil, err.Error())
-//	}
-//
-//	// Generate Correlation ID
-//	correlationID := utils.GenerateCorrelationID()
-//
-//	err = h.SendMessage.SendingToMessage("UserLogin", correlationID, requestBody)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return h.ResponseHandler.HandleEventResponse(
-//		c,
-//		true,
-//		http.StatusCreated,
-//		h.Config.RequestTimeout,
-//		"User login successfully",
-//		"UserLoginSuccess",
-//		"UserLoginFailed",
-//	)
-//}
+func (h *UserHandler) Login(c echo.Context) error {
+	// Rate Limit
+	err := config.CheckRateLimit(c)
+	if err != nil {
+		return err
+	}
+	// bind & validate request
+	var requestBody models.LoginRequest
+	if err := c.Bind(&requestBody); err != nil {
+		return webResponse.ResponseJson(c, http.StatusBadRequest, nil, "Invalid request format")
+	}
+	if err := requestBody.Validate(); err != nil {
+		return webResponse.ResponseJson(c, http.StatusBadRequest, nil, err.Error())
+	}
+
+	// Generate Correlation ID
+	correlationID := utils.GenerateCorrelationID()
+
+	err = h.SendMessage.SendingToMessage("UserLogin", correlationID, requestBody)
+	if err != nil {
+		return err
+	}
+
+	return h.ResponseHandler.HandleEventResponse(
+		c,
+		true,
+		http.StatusCreated,
+		h.Config.RequestTimeout,
+		"User login successfully",
+		"UserLoginSuccess",
+		"UserLoginFailed",
+	)
+}
