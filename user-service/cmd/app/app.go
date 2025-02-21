@@ -12,7 +12,8 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"time"
+	"syscall"
+	"user-service/api"
 	"user-service/core/models"
 	"user-service/core/repository"
 	"user-service/core/service"
@@ -56,15 +57,16 @@ func (app *App) Initialize() {
 
 	// Init Service
 	app.Service = &Service{
-		UserService: service.NewUserService(repository.NewUserRepo(db), rmq),
+		UserService: service.NewUserService(repository.NewUserRepo(db), rmq, api.NewSendingMessage(rmq)),
 	}
 }
 
 // RunConsumer function to run consumer
 func (app *App) RunConsumer(wg *sync.WaitGroup) {
 	defer wg.Done()
-	go func() {
-		messaging.ConsumeEvent(app.RMQ, "UserRegistered", func(event models.Event) {
+
+	eventHandlers := map[string]func(models.Event){
+		"UserRegistered": func(event models.Event) {
 			ctx := context.Background()
 
 			var req models.UserRegisteredEvent
@@ -76,11 +78,43 @@ func (app *App) RunConsumer(wg *sync.WaitGroup) {
 
 			logrus.Infof("[user-service] Processing UserRegistered | Email: %s", req.Email)
 			app.Service.UserService.HandleUserRegistered(ctx, payloadBytes, event.CorrelationID)
+		},
+
+		"UserLogin": func(event models.Event) {
+			ctx := context.Background()
+
+			var req models.UserLoginEvent
+			payloadBytes, _ := json.Marshal(event.Payload)
+			if err := json.Unmarshal(payloadBytes, &req); err != nil {
+				logrus.Errorf("Failed to parse event payload: %v", err)
+				return
+			}
+
+			logrus.Infof("[user-service] Processing UserLogin | Email: %s", req.Email)
+			app.Service.UserService.HandleUserLogin(ctx, payloadBytes, event.CorrelationID)
+		},
+	}
+
+	var eventNames []string
+	for eventName := range eventHandlers {
+		eventNames = append(eventNames, eventName)
+	}
+
+	go func() {
+		logrus.Infof("[RabbitMQ] Listening for events: %v", eventNames)
+		messaging.ConsumeEvent(app.RMQ, "user-service", eventNames, func(event models.Event) {
+			if handler, exists := eventHandlers[event.EventType]; exists {
+				handler(event)
+			} else {
+				logrus.Warnf("No handler found for event: %s", event.EventType)
+			}
 		})
 	}()
 
-	// **Don't let the main goroutine finish so the consumer will keep running**
-	select {}
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+	<-stopChan
+	logrus.Warn("[RabbitMQ] Stopping consumers...")
 }
 
 // Run function to run the app
@@ -105,18 +139,8 @@ func (app *App) Run() {
 	signal.Notify(quit, os.Interrupt)
 	<-quit
 
-	logrus.Info("Shutting down the server")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := app.Server.Shutdown(ctx); err != nil {
-		logrus.Fatal(err)
-	}
-
-	if app.RMQ != nil {
-		app.RMQ.Close()
-	}
-
 	logrus.Info("Server shutdown")
+	wg.Wait()
 }
 
 // LoadEnv function to load environment variables

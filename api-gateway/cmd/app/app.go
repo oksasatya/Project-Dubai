@@ -86,28 +86,6 @@ func (app *App) Initialize() {
 	routes.UserRoutes(app.Server, cfg, app.RMQ, app.ResponseHandler)
 }
 
-// handleShutdown function to gracefully shutdown server
-func (app *App) handleShutdown() {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-quit
-		logrus.Warn("Gracefully shutting down server...")
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := app.Server.Shutdown(ctx); err != nil {
-			logrus.Fatalf("Error shutting down server: %v", err)
-		}
-		if app.RMQ != nil {
-			app.RMQ.Close()
-		}
-		logrus.Info("Server and RabbitMQ connection closed successfully")
-	}()
-}
-
 // LoadEnv function to load environment variables
 func (app *App) LoadEnv() {
 	if err := godotenv.Load(); err != nil {
@@ -135,9 +113,33 @@ func (app *App) Run() {
 		port = "8080"
 	}
 
-	if err := app.Server.Start(":" + port); err != nil {
-		logrus.Info("Shutting down the server")
+	go func() {
+		if err := app.Server.Start(":" + port); err != nil {
+			logrus.Fatalf("Server stopped unexpectedly: %v", err)
+		}
+	}()
+	app.handleShutdown()
+
+}
+
+// handleShutdown function to gracefully shutdown server
+func (app *App) handleShutdown() {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	logrus.Warn("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := app.Server.Shutdown(ctx); err != nil {
+		logrus.Fatalf("Error shutting down server: %v", err)
 	}
 
-	app.handleShutdown()
+	if app.RMQ != nil {
+		app.RMQ.Close()
+	}
+
+	logrus.Info("Server and RabbitMQ connection closed successfully")
 }

@@ -117,14 +117,13 @@ func (rmq *RabbitMQConnection) PublishEvent(eventName string, body []byte) error
 		return err
 	}
 
-	// Retry mechanism for publishing event
 	for i := 0; i < 3; i++ {
 		logrus.Infof("[RabbitMQ] SENDING EVENT: %s | BODY: %s", eventName, body)
 		err = ch.Publish(
-			"events_exchange", // Exchange name
-			eventName,         // Routing key (event name)
-			false,             // Mandatory
-			false,             // Immediate
+			"events_exchange",
+			eventName,
+			false,
+			false,
 			amqp091.Publishing{
 				ContentType: "application/json",
 				Body:        body,
@@ -137,7 +136,7 @@ func (rmq *RabbitMQConnection) PublishEvent(eventName string, body []byte) error
 		}
 
 		logrus.Warnf("Failed to publish event (attempt %d): %v", i+1, err)
-		time.Sleep(1 * time.Second) // Wait before retry
+		time.Sleep(1 * time.Second)
 	}
 
 	logrus.Errorf("Final failure: Could not publish event after retries")

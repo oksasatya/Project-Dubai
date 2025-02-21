@@ -1,6 +1,8 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 // Event  struct is used for event data
 type Event struct {
@@ -12,7 +14,7 @@ type Event struct {
 
 // UserRegisteredEvent struct is used for user registration event
 type UserRegisteredEvent struct {
-	Email    string `json:"email"`
+	Email    string `json:"email,omitempty"`
 	Username string `json:"username"`
 	Password string `json:"-"`
 	Role     string `json:"role"`
@@ -21,10 +23,11 @@ type UserRegisteredEvent struct {
 	Age      int    `json:"age"`
 }
 
-// UserLoginSuccessEvent User Login Success Event
-type UserLoginSuccessEvent struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
+// UserLoginEvent UserLoginSuccessEvent User Login Success Event
+type UserLoginEvent struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
 }
 
 // UserOAuthEvent User Register via OAuth
@@ -32,6 +35,8 @@ type UserOAuthEvent struct {
 	GoogleID string `json:"google_id"`
 	Email    string `json:"email"`
 	Username string `json:"username"`
+	Avatar   string `json:"avatar"`
+	Role     string `json:"role"`
 }
 
 // UserOAuthSuccessEvent User Register OAuth Success

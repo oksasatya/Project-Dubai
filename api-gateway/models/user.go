@@ -2,7 +2,6 @@ package models
 
 import (
 	"github.com/go-playground/validator/v10"
-	"time"
 )
 
 type RegisterRequest struct {
@@ -35,11 +34,4 @@ type OAuthUserRequest struct {
 	GoogleID string `json:"google_id" validate:"required"`
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required"`
-}
-
-type Event struct {
-	EventType     string      `json:"event_type"`
-	CorrelationID string      `json:"correlation_id"`
-	Timestamp     time.Time   `json:"timestamp"`
-	Payload       interface{} `json:"payload"`
 }

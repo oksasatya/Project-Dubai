@@ -20,12 +20,13 @@ func NewSendingMessage(rmq *messaging.RabbitMQConnection) *SendingMessage {
 
 // SendingToMessage is a function to send message to message broker
 func (s *SendingMessage) SendingToMessage(eventType string, correlationID string, payload interface{}) error {
+	payloadBytes, err := json.Marshal(payload)
 	// Create Event Object
 	event := models.Event{
 		EventType:     eventType,
 		CorrelationID: correlationID,
 		Timestamp:     time.Now(),
-		Payload:       payload,
+		Payload:       json.RawMessage(payloadBytes),
 	}
 
 	// Serialize Event
