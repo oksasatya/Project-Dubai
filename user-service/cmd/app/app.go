@@ -93,6 +93,20 @@ func (app *App) RunConsumer(wg *sync.WaitGroup) {
 			logrus.Infof("[user-service] Processing UserLogin | Email: %s", req.Email)
 			app.Service.UserService.HandleUserLogin(ctx, payloadBytes, event.CorrelationID)
 		},
+
+		"GetProfile": func(event models.Event) {
+			ctx := context.Background()
+
+			var req models.GetUserProfileEvent
+			payloadBytes, _ := json.Marshal(event.Payload)
+			if err := json.Unmarshal(payloadBytes, &req); err != nil {
+				logrus.Errorf("Failed to parse event payload: %v", err)
+				return
+			}
+
+			logrus.Infof("[user-service] Processing GetProfile | UserID: %s", req.ID)
+			app.Service.UserService.HandleGetProfile(ctx, payloadBytes, event.CorrelationID)
+		},
 	}
 
 	var eventNames []string

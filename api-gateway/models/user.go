@@ -35,3 +35,18 @@ type OAuthUserRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required"`
 }
+
+// UserProfileRequest Request for Get and Update Profile
+type UserProfileRequest struct {
+	ID       string `json:"id" validate:"required"`
+	Username string `json:"username" `
+	Email    string `json:"email" `
+	Address  string `json:"address"`
+	Phone    string `json:"phone"`
+	Age      int    `json:"age" `
+}
+
+func (u *UserProfileRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(u)
+}

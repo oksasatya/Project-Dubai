@@ -1,46 +1,80 @@
 package middleware
 
 import (
+	"api-gateway/config"
+	"api-gateway/utils"
+	"context"
+	"encoding/json"
 	"errors"
+	"github.com/go-redis/redis/v8"
 	"github.com/golang-jwt/jwt/v5"
-	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	"os"
+	"strings"
 )
 
-// JWTMiddleware function to check JWT token
-func JWTMiddleware(jwtKey []byte) echo.MiddlewareFunc {
-	config := echojwt.Config{
-		SigningKey:    jwtKey,
-		SigningMethod: "HS256",
-		ContextKey:    "user",
-		TokenLookup:   "header:Authorization",
-		ErrorHandler: func(c echo.Context, err error) error {
-			// Default status and message
-			var status int = http.StatusUnauthorized
-			var message string = "Unauthorized"
+var Ctx = context.Background()
 
-			switch {
-			case errors.Is(err, jwt.ErrTokenExpired):
-				message = "Token has expired"
-				logrus.Warn("JWT Middleware Error: Token expired")
-			case errors.Is(err, jwt.ErrTokenSignatureInvalid):
-				message = "Invalid token signature"
-				logrus.Warn("JWT Middleware Error: Invalid token signature")
-			case errors.Is(err, jwt.ErrTokenNotValidYet):
-				message = "Token is not yet valid"
-				logrus.Warn("JWT Middleware Error: Token is not yet valid")
-			case errors.Is(err, jwt.ErrTokenMalformed):
-				message = "Malformed token"
-				logrus.Warn("JWT Middleware Error: Malformed token")
-			default:
-				message = "Invalid or missing token"
-				logrus.Warn("JWT Middleware Error: Unauthorized access")
+// JWTMiddleware function to check JWT token
+func JWTMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader == "" {
+				logrus.Warn("Missing Authorization header")
+				return c.JSON(http.StatusUnauthorized, echo.Map{"message": "Missing token"})
 			}
 
-			return c.JSON(status, map[string]string{"error": message})
-		},
+			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+			if tokenString == authHeader {
+				logrus.Warn("Invalid token format")
+				return c.JSON(http.StatusUnauthorized, echo.Map{"message": "Invalid token format"})
+			}
+
+			claims := &utils.JWTCustomClaims{}
+			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+				return []byte(os.Getenv("JWT_SECRET")), nil
+			})
+
+			if err != nil {
+				logrus.Errorf("Error parsing token: %v", err)
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
+			}
+
+			if !token.Valid {
+				logrus.Warn("Token is not valid")
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
+			}
+
+			// Cek token di Redis
+			rdb := config.NewRedisClient()
+			ctx := c.Request().Context()
+
+			storedToken, err := rdb.Get(ctx, tokenString).Result()
+			if errors.Is(err, redis.Nil) {
+				logrus.Warn("Token not found in Redis")
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
+			} else if err != nil {
+				logrus.Errorf("Error checking token in Redis: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error accessing Redis"})
+			}
+
+			var tokenData map[string]interface{}
+			if err := json.Unmarshal([]byte(storedToken), &tokenData); err != nil {
+				logrus.Errorf("Error parsing stored token data: %v", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Error parsing token data"})
+			}
+
+			if claims.UserID != tokenData["userID"].(string) {
+				logrus.Warn("Token user ID mismatch")
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
+			}
+
+			c.Set("user", claims)
+
+			return next(c)
+		}
 	}
-	return echojwt.WithConfig(config)
 }

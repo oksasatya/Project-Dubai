@@ -5,19 +5,19 @@ import (
 	"time"
 )
 
-// ✅ Enum Role Pengguna
+// Enum Role USER
 const (
 	RoleSuperAdmin = "SUPER_ADMIN"
 	RoleAdmin      = "ADMIN"
 	RoleUser       = "USER"
 )
 
-// User ✅ Model Utama User (Disimpan di Database)
+// User Model struct
 type User struct {
-	ID        primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Username  string             `json:"username" bson:"username"`
 	Email     string             `json:"email" bson:"email"`
-	Password  string             `json:"-" bson:"password"` // Jangan dikembalikan di response JSON
+	Password  string             `json:"password" bson:"password"`
 	Address   string             `json:"address,omitempty" bson:"address,omitempty"`
 	Phone     string             `json:"phone,omitempty" bson:"phone,omitempty"`
 	Age       int                `json:"age,omitempty" bson:"age,omitempty"`

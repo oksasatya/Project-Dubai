@@ -1,12 +1,15 @@
 package webResponse
 
 import (
+	"api-gateway/config"
 	"api-gateway/utils"
 	"encoding/json"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"messaging"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 )
 
@@ -69,6 +72,7 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 		logrus.Fatal("HandleEventResponse: RabbitMQ connection is nil!")
 		return ResponseJson(c, http.StatusInternalServerError, nil, "Internal Server Error: RabbitMQ connection is nil")
 	}
+
 	responseEvent, err := messaging.WaitForEvent(h.RMQ, timeout, "api-gateway", eventName...)
 	if err != nil {
 		logrus.Errorf("Event timeout while waiting for: %s", eventName)
@@ -76,6 +80,7 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 	}
 
 	logrus.Infof("Received event: %s | CorrelationID: %s", eventName, responseEvent.CorrelationID)
+	ctx := c.Request().Context()
 
 	var jsonResponse map[string]interface{}
 	if payloadStr, ok := responseEvent.Payload.(string); ok {
@@ -98,21 +103,40 @@ func (h *ResponseHandler) HandleEventResponse(c echo.Context, generateToken bool
 	for _, expectedEvent := range eventName {
 		if responseEvent.EventType == expectedEvent {
 			//logrus.Infof("Received expected event: %s", expectedEvent)
+			delete(jsonResponse, "password")
 			if generateToken {
 				userID, _ := jsonResponse["id"].(string)
 				userEmail, _ := jsonResponse["email"].(string)
 				userRole, _ := jsonResponse["role"].(string)
-
 				token, err := utils.GenerateToken(userID, userEmail, userRole)
 				if err != nil {
 					logrus.Error("Failed to generate token")
 					return ResponseJson(c, http.StatusInternalServerError, nil, "Failed to generate token")
 				}
 
+				// Simpan token ke Redis
+				ttlHoursStr := os.Getenv("JWT_EXPIRATION_TIME")
+				ttlHours := 72
+				if ttlHoursStr != "" {
+					var err error
+					ttlHours, err = strconv.Atoi(ttlHoursStr)
+					if err != nil {
+						logrus.Errorf("Invalid JWT_EXPIRATION_TIME value, using default: %v", err)
+					}
+				}
+
+				// Redis client
+				storeToken := config.StoreTokenInRedis(ctx, token, userID, userRole, ttlHours)
+				if storeToken != nil {
+					logrus.Errorf("Failed to store token in Redis: %v", storeToken)
+					return ResponseJson(c, http.StatusInternalServerError, nil, "Failed to store token in Redis")
+				}
+
+				logrus.Infof("Token stored in Redis: %s", token)
+
 				jsonResponse["token"] = token
-				delete(jsonResponse, "id")
-				delete(jsonResponse, "password")
 			}
+
 			return ResponseJson(c, statusCode, jsonResponse, message)
 		}
 	}

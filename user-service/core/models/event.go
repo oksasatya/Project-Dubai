@@ -16,7 +16,7 @@ type Event struct {
 type UserRegisteredEvent struct {
 	Email    string `json:"email,omitempty"`
 	Username string `json:"username"`
-	Password string `json:"-"`
+	Password string `json:"password"`
 	Role     string `json:"role"`
 	Address  string `json:"address"`
 	Phone    string `json:"phone"`
@@ -25,6 +25,7 @@ type UserRegisteredEvent struct {
 
 // UserLoginEvent UserLoginSuccessEvent User Login Success Event
 type UserLoginEvent struct {
+	ID       string `json:"id"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Role     string `json:"role"`
@@ -42,4 +43,13 @@ type UserOAuthEvent struct {
 // UserOAuthSuccessEvent User Register OAuth Success
 type UserOAuthSuccessEvent struct {
 	Email string `json:"email"`
+}
+
+type GetUserProfileEvent struct {
+	ID      string `json:"id"`
+	Name    string `json:"name" `
+	Email   string `json:"email" `
+	Address string `json:"address"`
+	Phone   string `json:"phone"`
+	Age     int    `json:"age" `
 }
