@@ -37,6 +37,14 @@ func (app *App) Initialize() {
 	app.LoadEnv()
 	app.Server = echo.New()
 
+	// Recover from panic
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Fatalf("Panic occurred during initialization: %v", r)
+		}
+	}()
+
+	// Rate Limit
 	cfg := config.LoadRateLimitConfig()
 	app.Server.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStoreWithConfig(
 		middleware.RateLimiterMemoryStoreConfig{
@@ -46,13 +54,16 @@ func (app *App) Initialize() {
 		},
 	)))
 
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Fatalf("Panic occurred during initialization: %v", r)
-		}
-	}()
+	// Redis
+	redisClient := config.NewRedisClient()
+	if redisClient == nil {
+		logrus.Fatal("Failed to initialize Redis")
+	}
 
+	// Logger
 	config.SetupLogger()
+
+	// Middleware
 	app.Server.Use(middleware.Recover())
 	app.Server.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},

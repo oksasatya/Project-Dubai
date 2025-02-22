@@ -1,7 +1,6 @@
 package config
 
 import (
-	"api-gateway/webResponse"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"sync"
@@ -67,7 +66,9 @@ func CheckRateLimit(c echo.Context) error {
 
 	ip := c.RealIP()
 	if rateLimit.Enable && !limiter.Allow(ip) {
-		return webResponse.ResponseJson(c, http.StatusTooManyRequests, nil, "Too many requests")
+		return c.JSON(http.StatusTooManyRequests, echo.Map{
+			"message": "Rate limit exceeded",
+		})
 	}
 
 	return nil

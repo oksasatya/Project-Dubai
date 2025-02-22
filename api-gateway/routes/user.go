@@ -3,6 +3,7 @@ package routes
 import (
 	"api-gateway/config"
 	"api-gateway/handler"
+	"api-gateway/middleware"
 	"api-gateway/webResponse"
 	"github.com/labstack/echo/v4"
 	"messaging"
@@ -18,4 +19,10 @@ func UserRoutes(e *echo.Echo, cfg *config.RateLimitConfig, rmq *messaging.Rabbit
 	// oauthGroup
 	//r.GET("/oauth/google", userHandler.GoogleLogin)
 	//r.GET("/oauth/google/callback", userHandler.GoogleCallback)
+	// Get Secret Key
+
+	// protected routes
+	r.Use(middleware.JWTMiddleware())
+	// profile routes
+	r.GET("/profile", userHandler.GetProfile)
 }
